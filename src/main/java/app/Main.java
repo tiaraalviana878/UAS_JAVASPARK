@@ -6,18 +6,51 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import app.model.*;
 import app.service.MenuService;
+import app.dao.OrderDao;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Main {
     static Gson gson = new Gson();
 
+    public static String jsonOk(Object obj) {
+        return gson.toJson(Map.of("ok", true, "data", obj));
+    }
+
+    public static String jsonError(String msg) {
+        return gson.toJson(Map.of("ok", false, "error", msg));
+    }
+
     public static void main(String[] args) {
 
         port(8080);
-        staticFiles.location("/public"); 
+        staticFiles.location("/public");
+
+        options("/*", (req, res) -> {
+            String headers = req.headers("Access-Control-Request-Headers");
+            if (headers != null)
+                res.header("Access-Control-Allow-Headers", headers);
+            String methods = req.headers("Access-Control-Request-Method");
+            if (methods != null)
+                res.header("Access-Control-Allow-Methods", methods);
+            return "OK";
+        });
+
+        before((req, res) -> res.header("Access-Control-Allow-Origin", "*"));
+
+        exception(Exception.class, (e, req, res) -> {
+            res.type("application/json");
+            res.status(500);
+            res.body(jsonError(e.getMessage()));
+        });
 
         MenuService menuService = new MenuService();
+        OrderDao orderDao = new OrderDao();
+
+        // ==============================
+        // ROUTES MENUS
+        // ==============================
 
         get("/api/menus", (req, res) -> {
             res.type("application/json");
@@ -29,31 +62,34 @@ public class Main {
             return gson.toJson(menuService.getByCategory(req.params("c")));
         });
 
-        post("/api/login", (req, res) -> {
+        // ==============================
+        // ROUTE TAMBAH MENU
+        // ==============================
+        post("/api/menus/add", (req, res) -> {
             res.type("application/json");
-
-            Map<String, Object> body = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>(){}.getType());
-            String username = (String) body.get("username");
-            String password = (String) body.get("password");
-
-            if (!"".equals(username) || !"".equals(password)) {
-                return gson.toJson(Map.of("ok", false, "msg", "Username atau password salah"));
+            try {
+                MenuItem newItem = gson.fromJson(req.body(), MenuItem.class);
+                boolean saved = menuService.addMenu(newItem);
+                if (!saved) {
+                    res.status(400);
+                    return gson.toJson(Map.of("ok", false, "error", "ID sudah ada atau gagal disimpan"));
+                }
+                return gson.toJson(Map.of("ok", true));
+            } catch (Exception e) {
+                res.status(500);
+                return gson.toJson(Map.of("ok", false, "error", e.getMessage()));
             }
-
-            Session session = req.session(true);
-            session.attribute("user", new User(username, "Administrator"));
-            session.attribute("cart", new ArrayList<CartItem>());
-
-            return gson.toJson(Map.of("ok", true));
         });
 
+        // ==============================
+        // ROUTES CART
+        // ==============================
         post("/api/cart/add", (req, res) -> {
             res.type("application/json");
-
-            Map<String, Object> payload = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>(){}.getType());
+            Map<String, Object> payload = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>() {
+            }.getType());
             String id = (String) payload.get("id");
-            Double qd = (Double) payload.getOrDefault("quantity", 1.0);
-            int quantity = qd.intValue();
+            int quantity = ((Double) payload.getOrDefault("quantity", 1.0)).intValue();
 
             Session session = req.session(true);
             List<CartItem> cart = session.attribute("cart");
@@ -70,8 +106,7 @@ public class Main {
 
             Optional<CartItem> existing = cart.stream().filter(ci -> ci.getItem().getId().equals(id)).findFirst();
             if (existing.isPresent()) {
-                CartItem ci = existing.get();
-                ci.setQuantity(ci.getQuantity() + quantity);
+                existing.get().setQuantity(existing.get().getQuantity() + quantity);
             } else {
                 cart.add(new CartItem(item, quantity));
             }
@@ -81,23 +116,22 @@ public class Main {
 
         get("/api/cart", (req, res) -> {
             res.type("application/json");
-
             Session session = req.session(true);
             List<CartItem> cart = session.attribute("cart");
-            if (cart == null) cart = new ArrayList<>();
+            if (cart == null)
+                cart = new ArrayList<>();
 
-            List<Map<String,Object>> out = new ArrayList<>();
+            List<Map<String, Object>> out = new ArrayList<>();
             double total = 0;
             int totalQty = 0;
 
             for (CartItem ci : cart) {
                 out.add(Map.of(
-                    "id", ci.getItem().getId(),
-                    "name", ci.getItem().getName(),
-                    "price", ci.getItem().getPrice(),
-                    "quantity", ci.getQuantity(),
-                    "total", ci.getTotal()
-                ));
+                        "id", ci.getItem().getId(),
+                        "name", ci.getItem().getName(),
+                        "price", ci.getItem().getPrice(),
+                        "quantity", ci.getQuantity(),
+                        "total", ci.getTotal()));
                 total += ci.getTotal();
                 totalQty += ci.getQuantity();
             }
@@ -107,39 +141,45 @@ public class Main {
 
         post("/api/cart/update", (req, res) -> {
             res.type("application/json");
-            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>(){}.getType());
+            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>() {
+            }.getType());
 
             String id = (String) p.get("id");
-            Double qd = (Double) p.get("quantity");
-            int q = qd.intValue();
+            int quantity = ((Double) p.get("quantity")).intValue();
 
             Session session = req.session(true);
             List<CartItem> cart = session.attribute("cart");
-            if (cart == null) return gson.toJson(Map.of("ok", false));
+            if (cart == null)
+                return gson.toJson(Map.of("ok", false));
 
             cart.stream().filter(ci -> ci.getItem().getId().equals(id)).findFirst()
-                .ifPresent(ci -> {
-                    if (q <= 0) cart.remove(ci);
-                    else ci.setQuantity(q);
-                });
+                    .ifPresent(ci -> {
+                        if (quantity <= 0)
+                            cart.remove(ci);
+                        else
+                            ci.setQuantity(quantity);
+                    });
 
             return gson.toJson(Map.of("ok", true));
         });
 
         post("/api/cart/remove", (req, res) -> {
             res.type("application/json");
-            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>(){}.getType());
+            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>() {
+            }.getType());
             String id = (String) p.get("id");
 
             Session session = req.session(true);
             List<CartItem> cart = session.attribute("cart");
-            if (cart != null) cart.removeIf(ci -> ci.getItem().getId().equals(id));
+            if (cart != null)
+                cart.removeIf(ci -> ci.getItem().getId().equals(id));
 
             return gson.toJson(Map.of("ok", true));
         });
 
         post("/api/checkout", (req, res) -> {
-            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>(){}.getType());
+            Map<String, Object> p = gson.fromJson(req.body(), new TypeToken<Map<String, Object>>() {
+            }.getType());
 
             String paymentMethod = (String) p.get("paymentMethod");
             String tableNumber = (String) p.getOrDefault("tableNumber", "");
@@ -153,22 +193,32 @@ public class Main {
             }
 
             double total = cart.stream().mapToDouble(CartItem::getTotal).sum();
+            String orderId = "ORD-" + System.currentTimeMillis();
 
-            Map<String,Object> receipt = Map.of(
-                    "items", cart.stream().map(ci -> Map.of(
-                            "name", ci.getItem().getName(),
-                            "quantity", ci.getQuantity(),
-                            "price", ci.getItem().getPrice(),
-                            "total", ci.getTotal()
-                    )).toArray(),
+            List<OrderItem> orderItems = cart.stream()
+                    .map(ci -> new OrderItem(
+                            ci.getItem().getId(),
+                            ci.getItem().getName(),
+                            ci.getQuantity(),
+                            ci.getItem().getPrice()))
+                    .collect(Collectors.toList());
+
+            boolean saved = orderDao.saveOrder(orderId, "Guest", tableNumber, cart);
+            cart.clear();
+
+            Map<String, Object> receipt = Map.of(
+                    "items", orderItems.stream().map(oi -> Map.of(
+                            "name", oi.getName(),
+                            "quantity", oi.getQuantity(),
+                            "price", oi.getPrice(),
+                            "total", oi.getTotal())).toArray(),
                     "total", total,
                     "paymentMethod", paymentMethod,
                     "tableNumber", tableNumber,
-                    "timestamp", System.currentTimeMillis()
-            );
+                    "timestamp", System.currentTimeMillis());
 
-            cart.clear();
-            return gson.toJson(Map.of("ok", true, "receipt", receipt));
+            return gson.toJson(Map.of("ok", saved, "receipt", receipt));
         });
+
     }
 }

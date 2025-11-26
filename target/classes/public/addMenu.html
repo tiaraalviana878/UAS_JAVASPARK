@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Tambah Menu - FoodOrder</title>
+</head>
+<body>
+    <h1>Tambah Menu</h1>
+    <form id="formMenu">
+        <label>ID: <input type="text" id="id"></label><br>
+        <label>Nama: <input type="text" id="name"></label><br>
+        <label>Kategori: <input type="text" id="category"></label><br>
+        <label>Deskripsi: <input type="text" id="description"></label><br>
+        <label>Harga: <input type="number" id="price"></label><br>
+        <label>Gambar: <input type="text" id="image" placeholder="nama_file.png"></label><br>
+        <button type="submit">Tambah Menu</button>
+    </form>
+
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('formMenu').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                id: document.getElementById('id').value,
+                name: document.getElementById('name').value,
+                category: document.getElementById('category').value,
+                description: document.getElementById('description').value,
+                price: Number(document.getElementById('price').value),
+                image: document.getElementById('image').value
+            };
+
+            const res = await fetch('/api/menus/add', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            });
+
+            const json = await res.json();
+            document.getElementById('result').innerText = json.ok ? "Menu berhasil ditambahkan!" : "Gagal: " + json.error;
+        });
+    </script>
+</body>
+</html>

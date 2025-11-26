@@ -1,33 +1,59 @@
 package app.service;
+
+import app.dao.MenuDao;
 import app.model.MenuItem;
-import java.util.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class MenuService {
-    private final List<MenuItem> items = new ArrayList<>();
+
+    private MenuDao menuDao;
 
     public MenuService() {
-        items.add(new MenuItem("m1","Nasi Goreng Spesial","Makanan","Nasi goreng dengan telur & ayam", 22000, "/images/nasi_goreng.jpg"));
-        items.add(new MenuItem("m2","Mie Ayam Bakso","Makanan","Mie ayam lengkap dengan bakso", 20000, "/images/mie_ayam.jpg"));
-        items.add(new MenuItem("d1","Es Teh Manis","Minuman","Es teh segar", 5000, "/images/es_teh.jpg"));
-        items.add(new MenuItem("s1","Kentang Goreng","Snack","Porsi kentang goreng", 12000, "/images/kentang.jpg"));
-        items.add(new MenuItem("p1","Paket Hemat 1","Paket","Nasi+Ayam+Teh", 30000, "/images/paket1.jpg"));
-        items.add(new MenuItem("promo1","Burger Promo","Promo","Burger diskon 20%", 18000, "/images/burger.jpg"));
+        this.menuDao = new MenuDao();
     }
 
     public List<MenuItem> getAll() {
-        return Collections.unmodifiableList(items);
-    }
-
-    public List<MenuItem> getByCategory(String category) {
-        List<MenuItem> out = new ArrayList<>();
-        for (MenuItem i : items) {
-            if (i.getCategory().equalsIgnoreCase(category)) out.add(i);
-        }
-        return out;
+        return menuDao.getAll();
     }
 
     public MenuItem findById(String id) {
-        for (MenuItem i : items) if (i.getId().equals(id)) return i;
-        return null;
+        return menuDao.findById(id);
+    }
+
+    public List<MenuItem> getByCategory(String category) {
+        return menuDao.getAll().stream()
+                .filter(m -> m.getCategory().equalsIgnoreCase(category))
+                .collect(Collectors.toList());
+    }
+
+    public boolean exists(String id) {
+        return menuDao.findById(id) != null;
+    }
+
+    public double getPrice(String id) {
+        MenuItem item = menuDao.findById(id);
+        return (item != null) ? item.getPrice() : 0;
+    }
+
+    public String getName(String id) {
+        MenuItem item = menuDao.findById(id);
+        return (item != null) ? item.getName() : "";
+    }
+
+    public String getImage(String id) {
+        MenuItem item = menuDao.findById(id);
+        return (item != null) ? item.getImage() : "";
+    }
+
+    // ==========================
+    // Method baru: tambah menu
+    // ==========================
+    public boolean addMenu(MenuItem item) {
+        if (exists(item.getId())) {
+            return false; // ID sudah ada
+        }
+        return menuDao.add(item);
     }
 }

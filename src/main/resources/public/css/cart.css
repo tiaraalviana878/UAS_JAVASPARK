@@ -1,0 +1,45 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f9f9f9;
+}
+
+header h1 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    background: #fff;
+}
+
+th, td {
+    padding: 10px;
+    border: 1px solid #ccc;
+    text-align: left;
+}
+
+th {
+    background: #eee;
+}
+
+input[type=number] {
+    width: 60px;
+}
+
+button {
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+#cartTotals {
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+.payment-methods label {
+    margin-right: 15px;
+}

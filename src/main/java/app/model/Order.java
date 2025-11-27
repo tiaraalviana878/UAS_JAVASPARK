@@ -12,7 +12,6 @@ public class Order implements Serializable {
     private long timestamp;
     private String status;
 
-    // Default constructor untuk Gson/serialization
     public Order() {
     }
 

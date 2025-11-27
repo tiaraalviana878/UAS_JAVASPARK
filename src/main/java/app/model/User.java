@@ -8,6 +8,12 @@ public class User {
         this.username = username;
         this.displayName = displayName;
     }
-    public String getUsername(){ return username; }
-    public String getDisplayName(){ return displayName; }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public String getDisplayName() {
+        return displayName;
+    }
 }
